@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ollama LM Arena</title>
+  <style>
+    :root {
+      --bg: #0f0f12;
+      --surface: #1a1a20;
+      --border: #2a2a32;
+      --text: #e8e8ec;
+      --muted: #888;
+      --accent: #6366f1;
+      --accent-hover: #818cf8;
+      --success: #22c55e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      min-height: 100vh;
+      padding: 1.5rem;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    .subtitle {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-bottom: 1.5rem;
+    }
+    .prompt-wrap {
+      margin-bottom: 1.5rem;
+    }
+    .prompt-wrap label {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+    textarea {
+      width: 100%;
+      min-height: 100px;
+      padding: 0.75rem 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 1rem;
+      resize: vertical;
+    }
+    textarea::placeholder { color: var(--muted); }
+    .btn {
+      padding: 0.6rem 1.2rem;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      transition: background 0.15s;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-primary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { background: var(--border); }
+    .compare-row { margin-top: 1rem; }
+    .answers {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    @media (max-width: 640px) { .answers { grid-template-columns: 1fr; } }
+    .answer-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+    }
+    .answer-card h3 {
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin: 0 0 0.5rem 0;
+      font-weight: 500;
+    }
+    .answer-card .body {
+      flex: 1;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      min-height: 80px;
+    }
+    .answer-card .body.loading { color: var(--muted); }
+    .answer-card .answer-time {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 0.5rem;
+    }
+    .answer-card .vote-btn {
+      margin-top: 0.75rem;
+      align-self: flex-start;
+    }
+    .results-panel {
+      margin-top: 2rem;
+      padding: 1.25rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      display: none;
+    }
+    .results-panel.visible { display: block; }
+    .main-view.hidden { display: none !important; }
+    .results-view { display: none; }
+    .results-view.visible { display: block; }
+    .results-view .results-panel { margin-top: 0; display: block; }
+    .btn-restart { margin-top: 1.5rem; }
+    .results-panel h2 {
+      font-size: 1.1rem;
+      margin: 0 0 1rem 0;
+    }
+    .score-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+    .score-row .name { font-weight: 500; }
+    .score-row .count { color: var(--accent); }
+    .total-rounds { color: var(--muted); font-size: 0.9rem; margin-top: 0.5rem; }
+    .vote-feedback {
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      background: rgba(34, 197, 94, 0.15);
+      border: 1px solid var(--success);
+      border-radius: 8px;
+      color: var(--success);
+      font-size: 0.95rem;
+      display: none;
+    }
+    .vote-feedback.visible { display: block; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="main-view" id="mainView">
+      <h1>Ollama LM Arena</h1>
+      <p class="subtitle">Введите промпт — два ответа сгенерируют разные модели. Выберите, какой ответ лучше (модели не раскрываются до итогов).</p>
+
+      <div class="prompt-wrap">
+        <label for="prompt">Промпт</label>
+        <textarea id="prompt" placeholder="Например: Объясни простыми словами, что такое квантовая запутанность"></textarea>
+      </div>
+      <div class="compare-row">
+        <button type="button" class="btn btn-primary" id="compareBtn">Сравнить</button>
+        <button type="button" class="btn btn-secondary" id="showResultsBtn" style="margin-left: 0.5rem;">Показать итоги</button>
+      </div>
+
+      <div class="vote-feedback" id="voteFeedback"></div>
+
+      <div class="answers" id="answers" style="display: none;">
+        <div class="answer-card">
+          <h3>Ответ 1</h3>
+          <div class="body" id="answer1"></div>
+          <div class="answer-time" id="answer1Time"></div>
+          <button type="button" class="btn btn-secondary vote-btn" data-vote="1">Эта лучше</button>
+        </div>
+        <div class="answer-card">
+          <h3>Ответ 2</h3>
+          <div class="body" id="answer2"></div>
+          <div class="answer-time" id="answer2Time"></div>
+          <button type="button" class="btn btn-secondary vote-btn" data-vote="2">Эта лучше</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="results-view" id="resultsView">
+      <div class="results-panel" id="resultsPanel">
+        <h2>Итоги</h2>
+        <div id="resultsContent"></div>
+        <p class="total-rounds" id="totalRounds"></p>
+      </div>
+      <button type="button" class="btn btn-primary btn-restart" id="restartBtn">Начать заново</button>
+    </div>
+  </div>
+
+  <script>
+    const promptEl = document.getElementById('prompt');
+    const compareBtn = document.getElementById('compareBtn');
+    const showResultsBtn = document.getElementById('showResultsBtn');
+    const answersEl = document.getElementById('answers');
+    const answer1El = document.getElementById('answer1');
+    const answer2El = document.getElementById('answer2');
+    const answer1TimeEl = document.getElementById('answer1Time');
+    const answer2TimeEl = document.getElementById('answer2Time');
+    const resultsPanel = document.getElementById('resultsPanel');
+    const resultsContent = document.getElementById('resultsContent');
+    const totalRoundsEl = document.getElementById('totalRounds');
+    const voteFeedbackEl = document.getElementById('voteFeedback');
+    const mainViewEl = document.getElementById('mainView');
+    const resultsViewEl = document.getElementById('resultsView');
+    const restartBtn = document.getElementById('restartBtn');
+
+    let currentRoundId = null;
+
+    function showMainView() {
+      mainViewEl.classList.remove('hidden');
+      resultsViewEl.classList.remove('visible');
+      promptEl.value = '';
+      voteFeedbackEl.classList.remove('visible');
+      answersEl.style.display = 'none';
+      currentRoundId = null;
+    }
+
+    function showResultsView() {
+      mainViewEl.classList.add('hidden');
+      resultsViewEl.classList.add('visible');
+    }
+
+    compareBtn.addEventListener('click', async () => {
+      const prompt = promptEl.value.trim();
+      if (!prompt) return;
+      compareBtn.disabled = true;
+      voteFeedbackEl.classList.remove('visible');
+      answersEl.style.display = 'grid';
+      answer1El.textContent = 'Генерация…';
+      answer2El.textContent = 'Генерация…';
+      answer1TimeEl.textContent = '';
+      answer2TimeEl.textContent = '';
+      answer1El.classList.add('loading');
+      answer2El.classList.add('loading');
+      document.querySelectorAll('.vote-btn').forEach(b => b.disabled = true);
+      try {
+        const res = await fetch('/api/round', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Ошибка');
+        currentRoundId = data.roundId;
+        answer1El.textContent = data.answer1 || '(пусто)';
+        answer2El.textContent = data.answer2 || '(пусто)';
+        answer1TimeEl.textContent = data.time1 != null ? `Время генерации: ${data.time1} с` : '';
+        answer2TimeEl.textContent = data.time2 != null ? `Время генерации: ${data.time2} с` : '';
+        answer1El.classList.remove('loading');
+        answer2El.classList.remove('loading');
+        document.querySelectorAll('.vote-btn').forEach(b => b.disabled = false);
+      } catch (e) {
+        answer1El.textContent = 'Ошибка: ' + e.message;
+        answer2El.textContent = '';
+        answer1El.classList.remove('loading');
+        answer2El.classList.remove('loading');
+      }
+      compareBtn.disabled = false;
+    });
+
+    answersEl.querySelectorAll('.vote-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!currentRoundId) return;
+        const vote = parseInt(btn.dataset.vote, 10);
+        btn.disabled = true;
+        try {
+          const res = await fetch('/api/vote', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ roundId: currentRoundId, vote }),
+          });
+          const data = await res.json();
+          if (res.ok && data.chosenModel) {
+            voteFeedbackEl.textContent = `Вы отдали предпочтение модели ${escapeHtml(data.chosenModel)}. Введите следующий промпт.`;
+            voteFeedbackEl.classList.add('visible');
+            promptEl.value = '';
+            promptEl.focus();
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      });
+    });
+
+    showResultsBtn.addEventListener('click', async () => {
+      const res = await fetch('/api/scores');
+      const data = await res.json();
+      resultsContent.innerHTML = `
+        <div class="score-row"><span class="name">${escapeHtml(data.modelA)}</span> <span class="count">${data.scoreA} голосов</span></div>
+        <div class="score-row"><span class="name">${escapeHtml(data.modelB)}</span> <span class="count">${data.scoreB} голосов</span></div>
+      `;
+      totalRoundsEl.textContent = `Всего раундов с голосом: ${data.totalRounds}`;
+      showResultsView();
+      const archiveRes = await fetch('/api/archive', { method: 'POST' });
+      if (!archiveRes.ok) console.error('Archive failed');
+    });
+
+    restartBtn.addEventListener('click', () => {
+      showMainView();
+    });
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+# Итоги выполнения домашнего задания (не выгружать в репозиторий)
+data.json
+archives/
+HOMEWORK.md
+HOMEWORK.txt
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+*.swp
+*.swo
